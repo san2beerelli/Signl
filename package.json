@@ -1,0 +1,94 @@
+{
+  "name": "signl",
+  "version": "0.1.0",
+  "description": "Cross-platform GPS location spoofing for iOS Simulators, Android Emulators, physical devices, and browsers",
+  "main": "dist/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "package": "electron-builder",
+    "package:mac": "electron-builder --mac",
+    "package:win": "electron-builder --win",
+    "package:linux": "electron-builder --linux",
+    "typecheck": "tsc --noEmit",
+    "typecheck:main": "tsc --noEmit -p src/main/tsconfig.json",
+    "typecheck:renderer": "tsc --noEmit -p src/renderer/tsconfig.json"
+  },
+  "keywords": [
+    "electron",
+    "gps",
+    "location",
+    "simulator",
+    "mock",
+    "ios",
+    "android"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@heroui/react": "^3.2.2",
+    "@heroui/theme": "^2.4.26",
+    "@turf/turf": "^7.3.5",
+    "@types/ws": "^8.18.1",
+    "adbkit": "^2.11.1",
+    "framer-motion": "^11.18.2",
+    "gpx-builder": "^6.0.0",
+    "maplibre-gl": "^5.24.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "ws": "^8.21.1",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^22.16.4",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.4.1",
+    "autoprefixer": "^10.4.21",
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6"
+  },
+  "build": {
+    "appId": "com.signl.app",
+    "productName": "Signl",
+    "directories": {
+      "output": "release"
+    },
+    "extraResources": [
+      "build/icon.png"
+    ],
+    "files": [
+      "dist/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon.icns",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development"
+    }
+  }
+}

@@ -1,0 +1,52 @@
+/*
+ * LocationSimulator Base Styles
+ * HeroUI styles (including Tailwind) are imported in main.tsx
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+/*
+ * Frosted-glass panel — used by the nav rail, drawer, and bottom bar.
+ * Backgrounds and border colours flip automatically with the html.dark class
+ * that mapUiStore toggles on theme change.
+ */
+:root {
+  --panel-bg:           rgba(255, 255, 255, 0.25);
+  --panel-border:       rgba(0, 0, 0, 0.18);
+  --card-bg:            rgba(255, 255, 255, 0.18);
+  --card-bg-selected:   rgba(59, 130, 246, 0.18);
+  --card-border-selected: rgba(59, 130, 246, 0.45);
+}
+
+html.dark {
+  --panel-bg:           rgba(10, 10, 20, 0.25);
+  --panel-border:       rgba(255, 255, 255, 0.10);
+  --card-bg:            rgba(255, 255, 255, 0.06);
+  --card-bg-selected:   rgba(59, 130, 246, 0.18);
+  --card-border-selected: rgba(59, 130, 246, 0.5);
+}
+
+.ls-panel {
+  background: var(--panel-bg);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--panel-border);
+}
+
+.ls-card {
+  background: var(--card-bg);
+  border: 1.5px solid transparent;
+  border-radius: 10px;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.ls-card-selected {
+  background: var(--card-bg-selected);
+  border-color: var(--card-border-selected);
+}
