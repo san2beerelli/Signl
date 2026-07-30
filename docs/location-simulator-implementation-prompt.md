@@ -58,7 +58,7 @@ Renderer process
 Follow these architectural rules:
 
 1. Keep all native device communication in the Electron main process.
-2. Keep route playback timing and interpolation in the main process (see the Stage 3 status note — this rule describes the target design; today's real playback for iOS Simulator/devices runs client-side in the renderer instead, which is exactly what this rule says not to do long-term).
+2. Keep route playback timing and interpolation in the main process (see the Stage 3 status note — this rule describes the target design; today's real playback for every backend, browsers included, runs client-side in the renderer instead, which is exactly what this rule says not to do long-term).
 3. Send location and playback updates to the renderer through IPC push events.
 4. Define all IPC channels and payloads in `src/shared/types/ipc.ts`.
 5. Keep platform-specific behavior inside device backend modules.
@@ -90,7 +90,7 @@ Implement:
 
 Implement:
 
-- Walking / Running / Cycling / Driving simulation — 🟡 partial: travel-mode selector and per-mode speed exist (`TravelMode`, `DEFAULT_TRAVEL_SPEEDS_MPS`), and it drives real playback for the browser backend and the renderer's own simulation loop; it does **not** drive a central main-process manager (see Stage 3)
+- Walking / Running / Cycling / Driving simulation — 🟡 partial: travel-mode selector and per-mode speed exist (`TravelMode`, `DEFAULT_TRAVEL_SPEEDS_MPS`), and it drives the renderer's own client-side simulation loop for every backend (including browsers — see the correction in section 4, the browser backend's own real playback implementation is currently unreachable); it does **not** drive a central main-process manager (see Stage 3)
 - Recorded GPS-track replay — ❌ not implemented
 - Start, pause, resume, stop, and restart — 🟡 partial: start/stop exist; pause/resume/restart do not
 - Continuous route looping — ❌ not implemented
@@ -209,7 +209,7 @@ interface DeviceBackend {
 }
 ```
 
-This is a real, deliberate divergence from the "thin backend, smart central manager" design originally proposed below — `browserExternal/index.ts` is a working example of a backend owning its own playback loop (a `setInterval` tick that calls `applyGeolocationToAllPages` and reports progress via the callbacks). If you build the Stage 3 central manager, decide explicitly whether it *replaces* each backend's own `startRoute`/`stopRoute`, or *drives* them by calling `setLocation` repeatedly (which is what the renderer's own simulation loop already does today, client-side, for the iOS Simulator/device backends — see `useRouteSimulation.ts`). Don't build both patterns for the same backend.
+This is a real, deliberate divergence from the "thin backend, smart central manager" design originally proposed below — `browserExternal/index.ts` implements a real backend-owned playback loop (a `setInterval` tick that calls `applyGeolocationToAllPages` and reports progress via the callbacks). **But nothing in the app currently calls it** — see the correction in section 4 below; it's fully-written dead code today, not a working alternate path. If you build the Stage 3 central manager, decide explicitly whether it *replaces* each backend's own `startRoute`/`stopRoute` (which would mean finally wiring `location:startRoute` to call `backend.startRoute()`, making `browserExternal`'s implementation live), or *drives* them by calling `setLocation` repeatedly (which is what the renderer's own simulation loop already does today, client-side, for every backend — see `useRouteSimulation.ts`). Don't build both patterns for the same backend.
 
 ```text
 RoutePlaybackManager (proposed, not built)
@@ -223,11 +223,15 @@ Target device
 
 # 4. Central playback manager — ❌ not built
 
-**Current status:** there is no `src/main/playback/` directory and no central playback manager. What exists instead, doing an equivalent job in two different places:
-- `src/main/backends/browserExternal/index.ts`'s `startRoute` — a `setInterval`-based loop specific to that one backend.
-- `src/renderer/components/map/useRouteSimulation.ts` — a `requestAnimationFrame` loop running **in the renderer**, calling `setLocation` repeatedly for whichever device is selected. This works for any backend but violates rule 2 above (playback timing should live in the main process) and has no pause/resume/loop/jump support.
+**Current status:** there is no `src/main/playback/` directory and no central playback manager. There are, in fact, **three** separate route-playback code paths in this codebase, and only **one** of them is what actually runs when you click Simulate, for any backend:
 
-If you build this, the sections below (4–8) are still the intended design — implement them as originally specified.
+1. **The genuinely mocked, unreachable IPC layer.** `location:startRoute`/`location:stopRoute` (`src/main/ipc/handlers/location.ts`) return a fake `playbackId` and a hardcoded stop position — and critically, **they never call `backend.startRoute()`/`backend.stopRoute()` at all**, for any device kind. `routeStore.ts`'s `startPlayback()`/`stopPlayback()` (lines ~413-435) call exactly these mocked channels — but **no component in the renderer calls `startPlayback()`**. It's dead code, wired to nothing. If you go looking for "the Simulate button's handler" here, you won't find it — this is the wrong trail.
+2. **A real but currently unreachable backend implementation, for browsers only.** `src/main/backends/browserExternal/index.ts`'s `startRoute` is a fully-working `setInterval` tick that calls `applyGeolocationToAllPages` and reports progress via `onProgress`/`onComplete` — genuinely good code. But since nothing in path 1 ever calls it, and nothing else calls it either, **it never runs in the shipped app today**. `iosSimulatorBackend.startRoute()`, by contrast, is an honest `throw new NotSupportedError(...)` stub — different reason for not working (not built vs. built-but-disconnected), same practical result.
+3. **The one path that's actually live**, for every backend without exception, browsers included: the "Simulate" button in `RouteInstructionBanner.tsx` calls `routeStore.ts`'s `startSimulation()`, which does nothing but flip `isSimulating: true` — no IPC call at all. `src/renderer/components/map/useRouteSimulation.ts` watches that flag and runs a `requestAnimationFrame` loop **in the renderer**: each frame it interpolates a position along `roadRouteGeometry`, moves the on-map marker, and — throttled to every 500ms — calls the real `setLocation()` store action (the same one the single-location editor uses), which hits the real `location:set` channel and really applies the location on whichever backend is selected (`xcrun simctl location <udid> set <lat>,<lng>` for iOS Simulator, a CDP geolocation override for browsers, etc.).
+
+Path 3 is why route playback visibly *works* today for every implemented backend, iOS Simulator and browsers alike, despite paths 1 and 2 both being non-functional (mocked or unreachable) — it's a different, unrelated code path that repeatedly calls the *single-location* API fast enough to look like route playback. It has no pause/resume/loop/jump, stops if you navigate away, and puts timing in the renderer instead of the main process — exactly the anti-pattern rule 2 above warns against. There is currently no backend for which route playback is actually backend-owned in the running app, even though `browserExternal` has the code for it.
+
+If you build the central manager, the sections below (4–8) are still the intended design — implement them as originally specified, and make sure you're replacing *all three* paths above, not just the obviously-mocked one, or you'll fix the IPC layer while path 3 keeps quietly doing the real work client-side. Wiring path 1 to actually call `backend.startRoute()` would make `browserExternal`'s existing implementation live with comparatively little new code — that's probably the cheapest first step if you want to make partial progress before building the full manager.
 
 Create:
 
@@ -290,7 +294,7 @@ The manager must support:
 
 # 5. Playback timing and drift — design not yet applied
 
-**Current status:** the two working playback loops (browser-backend interval, renderer `requestAnimationFrame` loop) both already compute distance from elapsed time rather than accumulating per-tick, so the core anti-drift idea below is already followed where playback exists. What's missing is the monotonic-clock discipline and the central manager to own it.
+**Current status:** the one loop that actually runs (the renderer's `requestAnimationFrame` loop — see the correction in section 4; the browser backend's own `setInterval` loop is real code but currently unreachable) already computes distance from elapsed time rather than accumulating per-tick, so the core anti-drift idea below is already followed where playback exists. What's missing is the monotonic-clock discipline and the central manager to own it.
 
 Playback runs in the main process.
 
@@ -751,7 +755,7 @@ There's no README "implementation order" to follow anymore — README.md now doc
 
 ## Browser — ✅ done
 
-`src/main/backends/browser.ts` re-exports `browserExternal/` (split into `catalogue.ts`, `cdpTransport.ts`, `portManagement.ts`, `geolocation.ts`, `playbackMath.ts`, `lifecycle.ts`). Both embedded (this app's own window, via its own CDP debugger session) and external (Chrome/Edge/Brave/Arc/Chromium/Vivaldi/Opera, launched or adopted with `--remote-debugging-port`) targets work, including real route playback with its own interval loop — this is the one backend where Stage 7's browser work and Stage 3's playback-manager work both landed, just backend-local rather than centralized.
+`src/main/backends/browser.ts` re-exports `browserExternal/` (split into `catalogue.ts`, `cdpTransport.ts`, `portManagement.ts`, `geolocation.ts`, `playbackMath.ts`, `lifecycle.ts`). Both embedded (this app's own window, via its own CDP debugger session) and external (Chrome/Edge/Brave/Arc/Chromium/Vivaldi/Opera, launched or adopted with `--remote-debugging-port`) targets work for discovery and single-location `setLocation`. `startRoute` has a real, complete `setInterval`-based implementation here too — but see the correction in section 4: the IPC layer never calls any backend's `startRoute`, so this code currently never runs. Route "Simulate" works for browsers the same way it does for every other backend, via the renderer's client-side loop, not via this method.
 
 ## Physical iOS — ✅ done (discovery + best-effort set location)
 
@@ -837,9 +841,9 @@ Updated `Coordinate`, capabilities, IPC types, `LocationEditor`, validation, map
 Done: draw-route mode, road-route distance/duration via Valhalla, travel modes, route rendering (preview + road-following line), route summary in `RouteInstructionBanner`.
 Not done: edit/drag/delete individual waypoints in the UI (store actions exist, unused), formal route normalization layer.
 
-## Stage 3: Playback manager — ❌ not built (see sections 3-5, 18)
+## Stage 3: Playback manager — ❌ not built (see section 4 for the full detail)
 
-No central main-process manager. Real playback exists in two separate places instead: the browser backend's own interval loop, and the renderer's client-side `requestAnimationFrame` loop for everything else. No pause/resume/restart/loop/jump. `location:progress` is defined but never emitted.
+No central main-process manager. The IPC-level `location:startRoute`/`stopRoute` are mocked and never call into any backend. `browserExternal`'s own `setInterval`-based `startRoute` is fully implemented but unreachable for the same reason. The only playback that actually runs, for every backend including browsers, is a renderer-side `requestAnimationFrame` loop (`useRouteSimulation.ts`) triggered by the Simulate button's `startSimulation()`, which repeatedly calls the single-location `setLocation()` API rather than any route-specific one. No pause/resume/restart/loop/jump. `location:progress` is defined but never emitted.
 
 ## Stage 4: Playback controls — 🟡 partial (see section 21)
 
@@ -853,7 +857,7 @@ Lat/Lng paste parsing is partial. GeoJSON, CSV: not started. GPX: mocked, not re
 
 ## Stage 7: Remaining backends — 🟡 partial (see section 23)
 
-Done ahead of the original sequencing: external Chromium (with real route playback), physical iOS (discovery + best-effort set location, with a real iOS-17+ limitation).
+Done ahead of the original sequencing: external Chromium (discovery + set location; its own `startRoute` is fully written but currently unreachable — see section 4), physical iOS (discovery + best-effort set location, with a real iOS-17+ limitation).
 Still stubs: Android Emulator, physical Android.
 
 ---

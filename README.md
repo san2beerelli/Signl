@@ -8,18 +8,19 @@ Built with Electron + Vite (`electron-vite`) + React 19 + TypeScript + Zustand +
 
 Not everything below is finished — this section is here so you know what actually works before relying on it.
 
-| Backend | Discovery | Set location | Route playback |
+| Backend | Discovery | Set location | Route playback via UI's "Simulate" |
 |---|---|---|---|
-| iOS Simulator (`xcrun simctl`) | ✅ | ✅ | ❌ (mocked) |
-| Physical iOS device (`libimobiledevice`/`idevicelocation`) | ✅ | ✅ lat/lng only, best-effort | ❌ |
-| Embedded browser (this app's own window, CDP) | N/A | ✅ | ✅ |
-| External browser (Chrome/Edge/Brave/Arc/Chromium/Vivaldi/Opera, CDP) | ✅ | ✅ | ✅ |
+| iOS Simulator (`xcrun simctl`) | ✅ | ✅ | ✅ (see caveat below) |
+| Physical iOS device (`libimobiledevice`/`idevicelocation`) | ✅ | ✅ lat/lng only, best-effort | ✅ (see caveat below) |
+| Embedded browser (this app's own window, CDP) | N/A | ✅ | ✅ (see caveat below) |
+| External browser (Chrome/Edge/Brave/Arc/Chromium/Vivaldi/Opera, CDP) | ✅ | ✅ | ✅ (see caveat below) |
 | Android Emulator | ❌ stub | ❌ | ❌ |
 | Physical Android device | ❌ stub | ❌ | ❌ |
 
 A few other things worth knowing:
 
-- **Physical iOS device location control is fragile on modern iOS.** `idevicelocation` mounts the developer disk image for the device's exact iOS version. On iOS 17+, Apple only issues *personalized* disk images through an active Xcode pairing session, so `setLocation` can fail with a mount error on newer devices even with everything installed correctly — that's an OS-level limitation, not a bug here.
+- **"Route playback" is real for every implemented backend, but not the way the architecture intends.** There's no main-process playback engine yet — `location:startRoute`/`location:stopRoute` are mocked IPC handlers that don't call into any backend, and the external-browser backend's own real, fully-written `startRoute()` (a proper interval loop with progress callbacks) is consequently never invoked either. What actually runs when you click "Simulate" is a client-side loop in the renderer (`useRouteSimulation.ts`) that repeatedly calls the regular single-location `setLocation` API fast enough to look like route playback. It works, but has no pause/resume/loop/jump, stops if you navigate away, and puts timing in the renderer instead of the main process. See `docs/location-simulator-implementation-prompt.md` section 4 for the full detail if you're going to build the real thing.
+- **Physical iOS device location control is fragile on modern iOS.** `idevicelocation` mounts the developer disk image for the device's exact iOS version. On iOS 17+, Apple only issues *personalized* disk images through an active Xcode pairing session, so `setLocation` (and therefore Simulate, which depends on it) can fail with a mount error on newer devices even with everything installed correctly — that's an OS-level limitation, not a bug here.
 - **GPX import/export is mocked.** `gpx:import`/`gpx:export` return hardcoded data regardless of the file you pick; `gpx-builder` is a dependency but isn't imported anywhere yet.
 - Reverse geocoding and road-following directions are real, backed by two free public OpenStreetMap services: [Nominatim](https://nominatim.openstreetmap.org) and [Valhalla](https://valhalla1.openstreetmap.de). Both are volunteer-run fair-use demo servers, not SLA-backed APIs — fine for interactive single-click use, not for bulk requests.
 
@@ -130,7 +131,7 @@ src/
 | `devices:list` | Discover devices across all backends |
 | `location:set` | Push a coordinate to a device |
 | `location:reset` | Reset a device to its real/default location |
-| `location:startRoute` / `location:stopRoute` | Route playback (mocked for most backends, real for browsers) |
+| `location:startRoute` / `location:stopRoute` | Mocked — returns a fake response and never calls into a backend. The UI's "Simulate" doesn't use this channel at all; see the Status section above |
 | `location:reverseGeocode` | Coordinate → short address, via Nominatim |
 | `route:getDirections` | Road-following route through waypoints, via Valhalla |
 | `gpx:import` / `gpx:export` | GPX file I/O (currently mocked) |
@@ -143,8 +144,8 @@ src/
 
 | Channel | Payload |
 |---|---|
-| `location:progress` | Route playback position updates |
-| `location:playbackComplete` | Route playback finished or was stopped |
+| `location:progress` | Defined and exposed on `window.api`, but never actually emitted — see the Status section above |
+| `location:playbackComplete` | Same — defined, never emitted |
 | `devices:changed` | Device list changed |
 
 ## License
