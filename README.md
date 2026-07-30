@@ -1,199 +1,151 @@
-# LocationSimulator
+# Signl
 
-A cross-platform desktop application for simulating GPS locations across iOS Simulators, Android Emulators, physical iOS/Android devices, and Chromium-based browsers — designed for testing location-aware applications during development.
+A desktop app for spoofing GPS location during development. Drop a pin or draw a route on the map and Signl pushes that location straight into an iOS Simulator, a physical iOS device, or a Chromium browser tab (embedded or external), so you can test location-aware features without leaving your desk.
 
-## Architecture Overview
+Built with Electron + Vite (`electron-vite`) + React 19 + TypeScript + Zustand + MapLibre GL JS + HeroUI.
 
-### Process Model
+## Status
 
-LocationSimulator uses Electron's two-process architecture:
+Not everything below is finished — this section is here so you know what actually works before relying on it.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Main Process                              │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │                    IPC Handlers                          │    │
-│  │  devices:list, location:set, location:startRoute, etc.  │    │
-│  └─────────────────────────────────────────────────────────┘    │
-│                              │                                   │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │                    Device Backends                        │   │
-│  │  ┌────────────┐ ┌────────────┐ ┌────────────────────┐    │   │
-│  │  │ iOS Sim    │ │ iOS Device │ │ Android Emulator   │    │   │
-│  │  │ (simctl)   │ │ (libimob)  │ │ (adbkit/telnet)    │    │   │
-│  │  └────────────┘ └────────────┘ └────────────────────┘    │   │
-│  │  ┌────────────┐ ┌──────────────────────────────────┐     │   │
-│  │  │ Android    │ │ Browser (embedded/external CDP) │     │   │
-│  │  │ Device     │ └──────────────────────────────────┘     │   │
-│  │  └────────────┘                                          │   │
-│  └──────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                      IPC (contextBridge)
-                              │
-┌─────────────────────────────────────────────────────────────────┐
-│                      Renderer Process                            │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │ DeviceSide- │  │ MapCanvas   │  │ PlaybackControls        │  │
-│  │ bar         │  │ (MapLibre)  │  │ RouteImportExport       │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │                    Zustand Stores                         │   │
-│  │  deviceStore (devices, selection)                         │   │
-│  │  routeStore (waypoints, playback state, speed)            │   │
-│  └──────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
-```
+| Backend | Discovery | Set location | Route playback |
+|---|---|---|---|
+| iOS Simulator (`xcrun simctl`) | ✅ | ✅ | ❌ (mocked) |
+| Physical iOS device (`libimobiledevice`/`idevicelocation`) | ✅ | ✅ lat/lng only, best-effort | ❌ |
+| Embedded browser (this app's own window, CDP) | N/A | ✅ | ✅ |
+| External browser (Chrome/Edge/Brave/Arc/Chromium/Vivaldi/Opera, CDP) | ✅ | ✅ | ✅ |
+| Android Emulator | ❌ stub | ❌ | ❌ |
+| Physical Android device | ❌ stub | ❌ | ❌ |
 
-### Why This Split?
+A few other things worth knowing:
 
-1. **Main Process Owns Device I/O**: All native CLI interactions (`xcrun simctl`, `adb`, `idevicelocation`) happen in the main process. This keeps the renderer process lightweight and ensures device commands aren't affected by UI throttling.
+- **Physical iOS device location control is fragile on modern iOS.** `idevicelocation` mounts the developer disk image for the device's exact iOS version. On iOS 17+, Apple only issues *personalized* disk images through an active Xcode pairing session, so `setLocation` can fail with a mount error on newer devices even with everything installed correctly — that's an OS-level limitation, not a bug here.
+- **GPX import/export is mocked.** `gpx:import`/`gpx:export` return hardcoded data regardless of the file you pick; `gpx-builder` is a dependency but isn't imported anywhere yet.
+- Reverse geocoding and road-following directions are real, backed by two free public OpenStreetMap services: [Nominatim](https://nominatim.openstreetmap.org) and [Valhalla](https://valhalla1.openstreetmap.de). Both are volunteer-run fair-use demo servers, not SLA-backed APIs — fine for interactive single-click use, not for bulk requests.
 
-2. **Main Process Owns Playback Timing**: Route playback interpolation runs in the main process via setInterval. This prevents timing drift that would occur if the renderer managed playback (browser tabs throttle when backgrounded).
+## Getting started
 
-3. **Renderer Receives Push Events**: During playback, the main process streams `location:progress` events to the renderer so the map marker updates smoothly.
-
-4. **Typed IPC Contract**: All IPC channels are defined in `src/shared/types/ipc.ts` with discriminated unions. Both processes import these types, so TypeScript catches mismatches at compile time.
-
-### Backend Design
-
-Each device platform has its own backend module implementing a common interface:
-
-```typescript
-interface DeviceBackend {
-  listDevices(): Promise<Device[]>;
-  // Returns the coordinate as actually applied (unsupported fields omitted)
-  setLocation(deviceId: string, coordinate: Coordinate): Promise<Coordinate>;
-  startRoute(deviceId: string, options: StartRouteOptions, ...): Promise<string>;
-  stopRoute(deviceId: string, playbackId: string): Promise<void>;
-  reset(deviceId: string): Promise<void>;
-}
-```
-
-Backends throw `NotSupportedError` for operations they can't perform (e.g., physical iOS devices may not support variable-speed playback). The UI checks device capabilities to show/hide controls appropriately.
-
-### State Management
-
-Uses Zustand (not Redux) for simplicity:
-
-- **deviceStore**: Tracks discovered devices, selected device, loading/error states
-- **routeStore**: Tracks waypoints, playback state, speed settings, loop mode
-
-Both stores are React hooks that components subscribe to. Changes trigger re-renders only in subscribing components.
-
-### Map & Routing
-
-- **MapLibre GL JS**: Renders the interactive map
-- **Turf.js**: Calculates route distances, interpolates positions along routes, computes bearing between points
-- **buildBaseMapStyles.ts**: Placeholder for custom map style (currently uses OSM raster tiles)
-
-## Directory Structure
-
-```
-/src
-  /main
-    index.ts                   # App bootstrap, window creation
-    /ipc
-      handlers.ts              # IPC handler registration
-    /backends
-      types.ts                 # DeviceBackend interface
-      iosSimulator.ts          # xcrun simctl wrapper
-      iosDevice.ts             # libimobiledevice wrapper
-      androidEmulator.ts       # adbkit telnet wrapper
-      androidDevice.ts         # adb mock location wrapper
-      browser.ts               # CDP geolocation wrapper
-    /devices
-      discovery.ts             # Aggregates devices from all backends
-  /preload
-    index.ts                   # contextBridge API exposure
-  /renderer
-    main.tsx                   # Entry point
-    App.tsx                    # Root component
-    /state
-      deviceStore.ts           # Zustand device state
-      routeStore.ts            # Zustand route/playback state
-    /components
-      DeviceSidebar.tsx        # Device list
-      MapCanvas.tsx            # MapLibre map
-      PlaybackControls.tsx     # Play/stop/speed controls
-      RouteImportExport.tsx    # GPX import/export
-      /map
-        buildBaseMapStyles.ts  # Map style (TODO: replace)
-      /ui
-        button.tsx             # shadcn/ui Button
-    /lib
-      utils.ts                 # cn() class merging
-    /styles
-      index.css                # Tailwind + CSS variables
-  /shared
-    /types
-      device.ts                # Device, Waypoint, Route types
-      ipc.ts                   # IPC channel contracts
-      index.ts                 # Barrel export
-```
-
-## IPC Channels
-
-### Request/Response (invoke/handle)
-
-| Channel | Request | Response |
-|---------|---------|----------|
-| `devices:list` | void | `{ devices: Device[] }` |
-| `location:set` | `{ deviceId, lat, lng, alt? }` | `{ coordinate }` |
-| `location:startRoute` | `{ deviceId, waypoints[], speed, loop? }` | `{ playbackId }` |
-| `location:stopRoute` | `{ deviceId }` | `{ stoppedAt }` |
-| `location:reset` | `{ deviceId }` | `{}` |
-| `gpx:import` | `{ filePath }` | `{ waypoints[], routeName? }` |
-| `gpx:export` | `{ filePath, waypoints[], routeName? }` | `{ filePath }` |
-
-### Push Events (send/on)
-
-| Channel | Payload |
-|---------|---------|
-| `location:progress` | `{ deviceId, playbackId, state: PlaybackState }` |
-| `location:playbackComplete` | `{ deviceId, playbackId, reason, finalPosition? }` |
-| `devices:changed` | `{ devices[], changeType, changedDeviceId? }` |
-
-## Getting Started
-
-See [SETUP.md](./SETUP.md) for installation prerequisites.
+Prerequisites and per-platform CLI tool setup (Xcode command line tools, `libimobiledevice`, Android platform tools, etc.) are in [SETUP.md](./SETUP.md). The app's own Environment Check panel (Settings button on the left rail) will also tell you what's missing and walk you through installing it.
 
 ```bash
 # Install dependencies
-pnpm install
+npm install
 
 # Run in development mode (hot reload)
-pnpm dev
+npm run dev
 
-# Type check
-pnpm typecheck
+# Type check (main, renderer, and preload each have their own tsconfig —
+# the root `npm run typecheck` alone does not check the preload project)
+npm run typecheck:main
+npm run typecheck:renderer
+npx tsc --noEmit -p src/preload/tsconfig.json
 
 # Build for production
-pnpm build
+npm run build
 
-# Package for distribution
-pnpm package:mac
+# Package a distributable app
+npm run package:mac
 ```
 
-## Development Status
+Package manager is **npm** (`package-lock.json`).
 
-- [x] Step 1: Electron + Vite + React + TS scaffold
-- [x] Step 2: Tailwind + HeroUI setup (originally shadcn/ui; migrated)
-- [x] Step 3: Shared types and IPC contract (stubbed handlers)
-- [x] Stage 1: Shared models and single-location flow
-  - [x] Normalized `Coordinate` (altitude, speed, heading, accuracy, timestamp)
-  - [x] Per-device `DeviceCapabilities` reported by every backend
-  - [x] `location:set` / `location:reset` with validation and typed errors
-  - [x] LocationEditor panel (validation, Apply/Reset/Copy/Paste/Re-send)
-  - [x] Map interaction modes (navigate / select-location / draw-route) with draggable pending marker
-  - [x] iOS Simulator injection via `execFile` (discovery, set, reset, error mapping)
-  - [x] Embedded browser injection via CDP `Emulation.setGeolocationOverride`
-- [ ] Stage 2: Route creation and normalization (draw/edit waypoints, distances, travel modes)
-- [ ] Stage 3: Playback manager (main-process interpolation, progress events)
-- [ ] Stage 4: Playback controls (speed presets, multipliers, progress slider)
-- [ ] Stage 5: File formats (Lat/Lng text, GeoJSON, GPX, CSV)
-- [ ] Stage 6: Recorded-track mode (original timing, gap compression)
-- [ ] Stage 7: Remaining backends (Android emulator, external Chromium, physical devices)
+## Architecture
+
+Standard Electron three-process split, connected by a typed IPC contract:
+
+```
+src/shared/types/ipc.ts   IpcInvokeChannel/IpcPushChannel unions + per-channel payload types
+        ↑ imported by both sides, so a channel/payload mismatch is a compile error
+src/main/ipc/handlers.ts  registerIpcHandlers() — wires ipcMain.handle() to the handler modules below
+src/preload/index.ts      contextBridge exposes window.api (a thin typed wrapper over ipcRenderer.invoke)
+src/renderer/**           calls window.api.xxx(...), never ipcRenderer directly
+```
+
+To add a new IPC channel: add it to `IpcInvokeChannel` and its payload/response types in `src/shared/types/ipc.ts`, add a handler in `src/main/ipc/handlers/` and register it in `handlers.ts`, then add a matching method to the `api` object in `src/preload/index.ts`. All three have to stay in sync by hand.
+
+### Device backends
+
+`src/main/backends/{iosSimulator,iosDevice,androidEmulator,androidDevice,browser}.ts` each implement the `DeviceBackend` interface (`src/main/backends/types.ts`): `getCapabilities()`, `listDevices()`, `setLocation()`, `startRoute()`, `stopRoute()`, `reset()`. `src/main/devices/discovery.ts` holds the `DeviceKind → DeviceBackend` registry and runs every backend in parallel via `Promise.allSettled`, so one backend failing doesn't break device discovery for the others.
+
+Backends never claim capabilities they don't have — `getCapabilities()` returns real per-field support, and the renderer gates the UI on it. Unsupported operations throw `NotSupportedError`; operation failures throw `BackendError` with a typed error code, which `main/ipc/handlers/errors.ts` maps to the `IpcError` sent to the renderer.
+
+`browser.ts` re-exports the actual implementation from `browserExternal/`, split into `catalogue.ts` (known browsers + capability data), `cdpTransport.ts` (the raw CDP HTTP/WebSocket plumbing), `portManagement.ts`, `geolocation.ts` (override apply/clear), `playbackMath.ts` (route interpolation), and `lifecycle.ts` (connect/disconnect).
+
+### Renderer shell
+
+`src/renderer/screens/MainScreen.tsx` is the only screen — a single edge-to-edge MapLibre map with floating panels absolutely positioned over it, no native title bar. The map itself is broken into hooks under `src/renderer/components/map/` (`useMapInitialization`, `useLocationMarkers`, `useWaypointMarkers`, `useRouteLines`, `useRouteSimulation`) so `MainScreen.tsx` stays focused on assembling them.
+
+Floating shell pieces:
+- `PrimaryNavigationRail.tsx` — left rail (Simulators/Devices/Browsers, Routes, Settings, theme toggle)
+- `SecondaryDrawer.tsx` — renders `drawers/{Simulators,Devices,Browsers,Routes}Drawer.tsx` based on which rail section is active
+- `SelectedTargetOverlay.tsx` — always-visible selected-device summary
+- `RouteInstructionBanner.tsx` — the route-drawing / simulate / save flow
+- `MapControls.tsx` — zoom/locate controls
+- `EnvironmentCheckModal.tsx` + `InstallStepsView.tsx` — CLI tool verification, opened from the rail's Settings button
+
+Three Zustand stores, each with a distinct responsibility: `deviceStore` (discovered devices, selection), `routeStore` (waypoints, playback, road-route geometry), `mapUiStore` (which rail section/drawer is open, map theme).
+
+### Directory structure
+
+```
+src/
+  main/
+    index.ts                       # App bootstrap, window creation
+    windows.ts                     # Main-window registry (avoids a circular import)
+    ipc/
+      handlers.ts                  # registerIpcHandlers() — wires channels to handlers/
+      handlers/                    # devices, system, location, geo, gpx, tools, browsers
+    backends/
+      types.ts                     # DeviceBackend interface, NotSupportedError/BackendError
+      iosSimulator.ts              # xcrun simctl — real
+      iosDevice.ts                 # idevice_id/ideviceinfo/idevicelocation — real
+      androidEmulator.ts           # stub
+      androidDevice.ts             # stub
+      browser.ts                   # re-exports browserExternal/
+      browserExternal/             # catalogue, CDP transport, geolocation, playback, lifecycle
+    devices/
+      discovery.ts                 # Aggregates devices across all backends
+  preload/
+    index.ts                       # contextBridge → window.api
+  renderer/
+    main.tsx / App.tsx             # Entry point
+    screens/MainScreen.tsx         # The one screen
+    components/
+      map/                         # Map hooks + pure helpers (geoMath, marker elements, ...)
+      drawers/                     # Per-section drawer content
+      *.tsx                        # Shell panels (rail, drawer host, overlays, banner, controls)
+    state/                         # deviceStore, routeStore, mapUiStore (Zustand)
+    icons.tsx                      # Shared SVG icon set
+  shared/
+    types/                         # device.ts, ipc.ts, index.ts (barrel)
+    coordinateValidation.ts
+```
+
+## IPC channels
+
+### Request/response (`invoke`/`handle`)
+
+| Channel | Purpose |
+|---|---|
+| `devices:list` | Discover devices across all backends |
+| `location:set` | Push a coordinate to a device |
+| `location:reset` | Reset a device to its real/default location |
+| `location:startRoute` / `location:stopRoute` | Route playback (mocked for most backends, real for browsers) |
+| `location:reverseGeocode` | Coordinate → short address, via Nominatim |
+| `route:getDirections` | Road-following route through waypoints, via Valhalla |
+| `gpx:import` / `gpx:export` | GPX file I/O (currently mocked) |
+| `tools:check` / `tools:install` | CLI tool verification/installation for the Environment Check panel |
+| `system:getUserLocation` | IP-based approximate location, for centering the map |
+| `system:getHomeLocation` / `system:setHomeLocation` | Persisted "home" pin the user can drag to set as their default |
+| `browsers:connect` / `browsers:disconnect` | Launch/adopt or disconnect an external browser's debug session |
+
+### Push events (`send`/`on`)
+
+| Channel | Payload |
+|---|---|
+| `location:progress` | Route playback position updates |
+| `location:playbackComplete` | Route playback finished or was stopped |
+| `devices:changed` | Device list changed |
 
 ## License
 
