@@ -15,7 +15,7 @@ export type NavSection = 'simulators' | 'devices' | 'browsers' | 'routes' | null
 
 const MAP_THEME_KEY = 'locationSimulator.mapTheme';
 
-function loadPersistedTheme(): MapTheme {
+const loadPersistedTheme = (): MapTheme => {
   let theme: MapTheme = 'dark';
   try {
     const stored = localStorage.getItem(MAP_THEME_KEY);
@@ -26,7 +26,7 @@ function loadPersistedTheme(): MapTheme {
   // Apply immediately so HeroUI renders correctly from the very first paint.
   document.documentElement.classList.toggle('dark', theme === 'dark');
   return theme;
-}
+};
 
 interface MapUiState {
   /** Which primary-rail section is currently active */
@@ -40,11 +40,11 @@ interface MapUiState {
 interface MapUiActions {
   /**
    * Select a rail section. Selecting the already-active section again
-   * collapses the drawer instead of reopening it (matches the primary
-   * rail's click-to-toggle behavior).
+   * closes the drawer (matches the primary rail's click-to-toggle
+   * behavior) and clears the selection, same as `closeDrawer`.
    */
   selectSection: (section: Exclude<NavSection, null>) => void;
-  /** Close the drawer without forgetting which section was active. */
+  /** Close the drawer and clear the rail's active-section highlight. */
   closeDrawer: () => void;
   /** Toggle the base map between dark and light themes. */
   toggleMapTheme: () => void;
@@ -58,13 +58,13 @@ export const useMapUiStore = create<MapUiState & MapUiActions>((set, get) => ({
   selectSection: (section) => {
     const { activeSection, isDrawerOpen } = get();
     if (activeSection === section && isDrawerOpen) {
-      set({ isDrawerOpen: false });
+      set({ isDrawerOpen: false, activeSection: null });
       return;
     }
     set({ activeSection: section, isDrawerOpen: true });
   },
 
-  closeDrawer: () => set({ isDrawerOpen: false }),
+  closeDrawer: () => set({ isDrawerOpen: false, activeSection: null }),
 
   toggleMapTheme: () => {
     const next: MapTheme = get().mapTheme === 'dark' ? 'light' : 'dark';
