@@ -27,17 +27,13 @@ const backends: Record<DeviceKind, DeviceBackend> = {
 /**
  * Get the backend for a specific device kind.
  */
-export function getBackendForKind(kind: DeviceKind): DeviceBackend {
-  return backends[kind];
-}
+export const getBackendForKind = (kind: DeviceKind): DeviceBackend => backends[kind];
 
 /**
  * Get the backend for a specific device ID.
  * Requires knowing the device kind, which should be cached from listDevices().
  */
-export function getBackendForDevice(device: Device): DeviceBackend {
-  return backends[device.kind];
-}
+export const getBackendForDevice = (device: Device): DeviceBackend => backends[device.kind];
 
 /**
  * Discover all available devices from all backends.
@@ -45,7 +41,7 @@ export function getBackendForDevice(device: Device): DeviceBackend {
  * Runs discovery in parallel across all backends and aggregates results.
  * Failures in one backend don't affect others.
  */
-export async function discoverAllDevices(): Promise<Device[]> {
+export const discoverAllDevices = async (): Promise<Device[]> => {
   const backendList = Object.values(backends);
 
   const results = await Promise.allSettled(
@@ -67,4 +63,4 @@ export async function discoverAllDevices(): Promise<Device[]> {
   }
 
   return allDevices;
-}
+};

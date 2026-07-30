@@ -25,7 +25,7 @@ app.setName('Signl');
 
 let mainWindow: BrowserWindow | null = null;
 
-function createWindow(): void {
+const createWindow = (): void => {
   const appIconPath = app.isPackaged
     ? join(process.resourcesPath, 'build/icon.png')
     : join(__dirname, '../../build/icon.png');
@@ -74,7 +74,7 @@ function createWindow(): void {
     // Production: load from built files
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
-}
+};
 
 // App lifecycle
 app.whenReady().then(() => {

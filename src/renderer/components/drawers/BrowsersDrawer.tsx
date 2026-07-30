@@ -9,48 +9,22 @@
 import { useState, type JSX } from "react";
 import { Button, Chip, Separator, ScrollShadow, Typography } from "@heroui/react";
 import { useDeviceStore } from "@/state/deviceStore.js";
+import { BrowserIcon, RefreshIcon } from "@/icons.js";
 import type { Device } from "@shared/types/index.js";
 
 const { Paragraph, Heading } = Typography;
 
-function RefreshIcon(): JSX.Element {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
-      <path d="M21 3v5h-5"/>
-      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
-      <path d="M8 16H3v5"/>
-    </svg>
-  );
-}
+const browserIdFromDeviceId = (deviceId: string): string => deviceId.replace("browser-external-", "");
 
-function GlobeIcon(): JSX.Element {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10"/>
-      <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
-      <path d="M2 12h20"/>
-    </svg>
-  );
-}
-
-function browserIdFromDeviceId(deviceId: string): string {
-  return deviceId.replace("browser-external-", "");
-}
-
-function BrowserCard({
-  device,
-  isSelected,
-  onSelect,
-  onConnect,
-  onDisconnect,
-}: {
+interface BrowserCardProps {
   device: Device;
   isSelected: boolean;
   onSelect: () => void;
   onConnect: () => Promise<void>;
   onDisconnect: () => Promise<void>;
-}): JSX.Element {
+}
+
+const BrowserCard = ({ device, isSelected, onSelect, onConnect, onDisconnect }: BrowserCardProps): JSX.Element => {
   const [isBusy, setIsBusy] = useState(false);
   const isConnected = device.state === "connected";
   const portHint = device.metadata?.model; // e.g. "CDP :9222"
@@ -72,7 +46,7 @@ function BrowserCard({
     >
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ flexShrink: 0, opacity: isConnected ? 1 : 0.45 }}>
-          <GlobeIcon />
+          <BrowserIcon />
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -122,15 +96,15 @@ function BrowserCard({
       </div>
     </div>
   );
-}
+};
 
-export function BrowsersDrawer(): JSX.Element {
+export const BrowsersDrawer = (): JSX.Element => {
   const { devices, selectedDeviceId, selectDevice, refreshDevices, isLoading } =
     useDeviceStore();
 
   const browsers = devices.filter((d) => d.kind === "browser-external");
 
-  const handleConnect = async (device: Device) => {
+  const handleConnect = async (device: Device): Promise<void> => {
     const browserId = browserIdFromDeviceId(device.id);
     const result = await window.api.connectBrowser({ browserId });
     if (result.success) {
@@ -139,7 +113,7 @@ export function BrowsersDrawer(): JSX.Element {
     }
   };
 
-  const handleDisconnect = async (device: Device) => {
+  const handleDisconnect = async (device: Device): Promise<void> => {
     await window.api.disconnectBrowser({ deviceId: device.id });
     await refreshDevices();
     if (selectedDeviceId === device.id) selectDevice(null);
@@ -189,4 +163,4 @@ export function BrowsersDrawer(): JSX.Element {
       </ScrollShadow>
     </div>
   );
-}
+};

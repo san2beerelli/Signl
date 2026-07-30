@@ -66,19 +66,19 @@ interface SimctlDevice {
  * Extract iOS version from runtime string.
  * e.g., "com.apple.CoreSimulator.SimRuntime.iOS-17-4" -> "17.4"
  */
-function parseOsVersion(runtime: string): string | undefined {
+const parseOsVersion = (runtime: string): string | undefined => {
   const match = runtime.match(/iOS[.-](\d+)[.-](\d+)/i);
   if (match && match[1] && match[2]) {
     return `${match[1]}.${match[2]}`;
   }
   return undefined;
-}
+};
 
 /**
  * Runs simctl with an argument array (no shell string concatenation) and
  * translates common failures into readable BackendErrors.
  */
-async function runSimctl(args: string[]): Promise<string> {
+const runSimctl = async (args: string[]): Promise<string> => {
   try {
     const { stdout } = await execFileAsync('xcrun', ['simctl', ...args], {
       timeout: COMMAND_TIMEOUT_MS,
@@ -123,7 +123,7 @@ async function runSimctl(args: string[]): Promise<string> {
       err
     );
   }
-}
+};
 
 /**
  * iOS Simulator backend implementation.

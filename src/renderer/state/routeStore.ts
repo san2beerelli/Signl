@@ -153,33 +153,26 @@ const DEFAULT_SPEED = 1.4;
 const SAVED_ROUTES_STORAGE_KEY = 'location-simulator:saved-routes:v1';
 
 /** Assigns sequential indexes after any list mutation. */
-function reindex(waypoints: Waypoint[]): Waypoint[] {
-  return waypoints.map((wp, index) => ({ ...wp, index }));
-}
+const reindex = (waypoints: Waypoint[]): Waypoint[] => waypoints.map((wp, index) => ({ ...wp, index }));
 
 let waypointCounter = 0;
-function nextWaypointId(): string {
+const nextWaypointId = (): string => {
   waypointCounter += 1;
   return `wp-${Date.now()}-${waypointCounter}`;
-}
+};
 
 let savedRouteCounter = 0;
-function nextSavedRouteId(): string {
+const nextSavedRouteId = (): string => {
   savedRouteCounter += 1;
   return `route-${Date.now()}-${savedRouteCounter}`;
-}
+};
 
-function cloneWaypoints(waypoints: Waypoint[]): Waypoint[] {
-  return waypoints.map((wp) => ({ ...wp }));
-}
+const cloneWaypoints = (waypoints: Waypoint[]): Waypoint[] => waypoints.map((wp) => ({ ...wp }));
 
-function cloneRouteGeometry(
-  geometry: [number, number][] | null
-): [number, number][] | null {
-  return geometry ? geometry.map(([lng, lat]) => [lng, lat] as [number, number]) : null;
-}
+const cloneRouteGeometry = (geometry: [number, number][] | null): [number, number][] | null =>
+  geometry ? geometry.map(([lng, lat]) => [lng, lat] as [number, number]) : null;
 
-function parseSavedRoutes(raw: string): SavedRoute[] {
+const parseSavedRoutes = (raw: string): SavedRoute[] => {
   const parsed = JSON.parse(raw) as unknown;
   if (!Array.isArray(parsed)) return [];
 
@@ -210,11 +203,11 @@ function parseSavedRoutes(raw: string): SavedRoute[] {
   }
 
   return result;
-}
+};
 
-function persistSavedRoutes(routes: SavedRoute[]): void {
+const persistSavedRoutes = (routes: SavedRoute[]): void => {
   localStorage.setItem(SAVED_ROUTES_STORAGE_KEY, JSON.stringify(routes));
-}
+};
 
 export const useRouteStore = create<RouteState & RouteActions>((set, get) => ({
   waypoints: [],

@@ -81,10 +81,10 @@ const EMPTY_FIELDS: FieldValues = {
  * device doesn't support. Returns field-level parse errors for non-numeric
  * text; range validation is delegated to validateCoordinate.
  */
-function buildCoordinate(
+const buildCoordinate = (
   fields: FieldValues,
   device: Device | undefined
-): { coordinate: Coordinate | null; errors: string[] } {
+): { coordinate: Coordinate | null; errors: string[] } => {
   const errors: string[] = [];
 
   const parse = (label: string, text: string): number | undefined => {
@@ -127,13 +127,11 @@ function buildCoordinate(
   }
 
   return { coordinate, errors: [] };
-}
+};
 
-function formatNumber(value: number | undefined): string {
-  return value === undefined ? '' : String(value);
-}
+const formatNumber = (value: number | undefined): string => (value === undefined ? '' : String(value));
 
-export function LocationEditor(): JSX.Element {
+export const LocationEditor = (): JSX.Element => {
   const {
     pendingCoordinate,
     lastAppliedCoordinate,
@@ -427,4 +425,4 @@ export function LocationEditor(): JSX.Element {
       )}
     </div>
   );
-}
+};

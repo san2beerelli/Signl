@@ -11,76 +11,10 @@ import { Button, Input, Label, TextField, Typography } from "@heroui/react";
 import { useRouteStore } from "@/state/routeStore.js";
 import { useDeviceStore } from "@/state/deviceStore.js";
 import { DRAWER_LEFT, DRAWER_WIDTH, SHELL_TOP } from "@/components/mapShellLayout.js";
+import { BikeIcon, CarIcon, PlayIcon, SaveIcon, StopIcon, WalkIcon, XIcon } from "@/icons.js";
 import type { TravelMode } from "@shared/types/index.js";
 
 const { Heading, Paragraph } = Typography;
-
-// ── SVG icons ───────────────────────────────────────────────────────────────
-function WalkIcon(): JSX.Element {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="5" r="2"/>
-      <path d="M12 7l-2 5 2 1 1 5"/>
-      <path d="M10 12l-3 3"/>
-      <path d="M13 13l2 4"/>
-    </svg>
-  );
-}
-
-function BikeIcon(): JSX.Element {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="5.5" cy="17.5" r="3.5"/>
-      <circle cx="18.5" cy="17.5" r="3.5"/>
-      <path d="M15 6a1 1 0 0 0-1-1h-1l-3 8h7l-2-7z"/>
-      <path d="M5.5 17.5 10 9"/>
-    </svg>
-  );
-}
-
-function CarIcon(): JSX.Element {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h13l4 4v4a2 2 0 0 1-2 2h-1"/>
-      <circle cx="7" cy="17" r="2"/>
-      <circle cx="17" cy="17" r="2"/>
-    </svg>
-  );
-}
-
-function PlayIcon(): JSX.Element {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-      <polygon points="5 3 19 12 5 21 5 3"/>
-    </svg>
-  );
-}
-
-function StopIcon(): JSX.Element {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-      <rect x="3" y="3" width="18" height="18" rx="2"/>
-    </svg>
-  );
-}
-
-function XIcon(): JSX.Element {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-    </svg>
-  );
-}
-
-function SaveIcon(): JSX.Element {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-      <polyline points="17 21 17 13 7 13 7 21"/>
-      <polyline points="7 3 7 8 15 8"/>
-    </svg>
-  );
-}
 
 // ── Travel mode data ─────────────────────────────────────────────────────────
 interface TravelModeOption {
@@ -105,20 +39,20 @@ const CAR_SPEED_PRESETS: Array<{ label: string; mph: number }> = [
   { label: "75 mph", mph: 75 },
 ];
 
-function formatMiles(meters: number): string {
+const formatMiles = (meters: number): string => {
   const miles = meters / 1609.344;
   return `${miles < 10 ? miles.toFixed(1) : Math.round(miles)} mi`;
-}
+};
 
-function formatDuration(seconds: number): string {
+const formatDuration = (seconds: number): string => {
   const totalMinutes = Math.round(seconds / 60);
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   return hours > 0 ? `${hours} hr ${minutes} min` : `${minutes} min`;
-}
+};
 
 // ── Component ────────────────────────────────────────────────────────────────
-export function RouteInstructionBanner(): JSX.Element | null {
+export const RouteInstructionBanner = (): JSX.Element | null => {
   const {
     mapInteractionMode,
     waypoints,
@@ -427,45 +361,40 @@ export function RouteInstructionBanner(): JSX.Element | null {
       )}
     </>
   );
-}
+};
 
 // ── Travel mode button ───────────────────────────────────────────────────────
-function TravelModeButton({
-  mode,
-  isActive,
-  isDisabled,
-  onPress,
-}: {
+interface TravelModeButtonProps {
   mode: TravelModeOption;
   isActive: boolean;
   isDisabled: boolean;
   onPress: () => void;
-}): JSX.Element {
-  return (
-    <span title={mode.label} style={{ flex: 1 }}>
-      <Button
-        variant={isActive ? "primary" : "secondary"}
-        aria-label={mode.label}
-        onPress={onPress}
-        isDisabled={isDisabled}
-        fullWidth
-        style={
-          {
-            display: "flex",
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 6,
-            padding: "8px 10px",
-            height: "auto",
-          } as React.CSSProperties
-        }
-      >
-        <span aria-hidden="true" style={{ lineHeight: 1, display: "flex", justifyContent: "center" }}>
-          {mode.icon}
-        </span>
-        <span style={{ fontSize: 12, fontWeight: 600, lineHeight: 1 }}>{mode.label}</span>
-      </Button>
-    </span>
-  );
 }
+
+const TravelModeButton = ({ mode, isActive, isDisabled, onPress }: TravelModeButtonProps): JSX.Element => (
+  <span title={mode.label} style={{ flex: 1 }}>
+    <Button
+      variant={isActive ? "primary" : "secondary"}
+      aria-label={mode.label}
+      onPress={onPress}
+      isDisabled={isDisabled}
+      fullWidth
+      style={
+        {
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 6,
+          padding: "8px 10px",
+          height: "auto",
+        } as React.CSSProperties
+      }
+    >
+      <span aria-hidden="true" style={{ lineHeight: 1, display: "flex", justifyContent: "center" }}>
+        {mode.icon}
+      </span>
+      <span style={{ fontSize: 12, fontWeight: 600, lineHeight: 1 }}>{mode.label}</span>
+    </Button>
+  </span>
+);

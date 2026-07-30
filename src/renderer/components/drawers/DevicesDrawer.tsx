@@ -9,12 +9,10 @@
 import type { JSX } from "react";
 import { TargetList } from "@/components/drawers/TargetList.js";
 
-export function DevicesDrawer(): JSX.Element {
-  return (
-    <TargetList
-      kinds={["ios-device", "android-device"]}
-      emptyTitle="No connected devices found."
-      emptyHint="Connect and authorize an iOS or Android device."
-    />
-  );
-}
+export const DevicesDrawer = (): JSX.Element => (
+  <TargetList
+    kinds={["ios-device", "android-device"]}
+    emptyTitle="No connected devices found."
+    emptyHint="Connect and authorize an iOS or Android device."
+  />
+);

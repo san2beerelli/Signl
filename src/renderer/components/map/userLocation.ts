@@ -19,7 +19,7 @@ export interface ResolvedUserLocation {
 
 const BROWSER_GEOLOCATION_TIMEOUT_MS = 3000;
 
-async function fromSavedHomeLocation(): Promise<ResolvedUserLocation | null> {
+const fromSavedHomeLocation = async (): Promise<ResolvedUserLocation | null> => {
   try {
     const response = await window.api.getHomeLocation();
     if (response.success && response.coordinate) {
@@ -29,9 +29,9 @@ async function fromSavedHomeLocation(): Promise<ResolvedUserLocation | null> {
     // Not critical — fall through to next source.
   }
   return null;
-}
+};
 
-function fromBrowserGeolocation(): Promise<ResolvedUserLocation | null> {
+const fromBrowserGeolocation = (): Promise<ResolvedUserLocation | null> => {
   return new Promise((resolve) => {
     if (!('geolocation' in navigator)) {
       resolve(null);
@@ -56,9 +56,9 @@ function fromBrowserGeolocation(): Promise<ResolvedUserLocation | null> {
       }
     );
   });
-}
+};
 
-async function fromIpEstimate(): Promise<ResolvedUserLocation | null> {
+const fromIpEstimate = async (): Promise<ResolvedUserLocation | null> => {
   try {
     const response = await window.api.getUserLocation();
     if (response.success && response.coordinate) {
@@ -71,8 +71,7 @@ async function fromIpEstimate(): Promise<ResolvedUserLocation | null> {
     // Fall through to null — the map keeps its default center.
   }
   return null;
-}
+};
 
-export async function resolveUserLocation(): Promise<ResolvedUserLocation | null> {
-  return (await fromSavedHomeLocation()) ?? (await fromBrowserGeolocation()) ?? (await fromIpEstimate());
-}
+export const resolveUserLocation = async (): Promise<ResolvedUserLocation | null> =>
+  (await fromSavedHomeLocation()) ?? (await fromBrowserGeolocation()) ?? (await fromIpEstimate());

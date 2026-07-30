@@ -26,7 +26,7 @@ const SECTION_TITLES: Record<Exclude<NavSection, null>, string> = {
   routes: "Routes",
 };
 
-export function SecondaryDrawer(): JSX.Element | null {
+export const SecondaryDrawer = (): JSX.Element | null => {
   const { activeSection, isDrawerOpen, closeDrawer } = useMapUiStore();
 
   // Escape closes the active drawer.
@@ -95,9 +95,9 @@ export function SecondaryDrawer(): JSX.Element | null {
       </div>
     </div>
   );
-}
+};
 
-function renderSection(section: NavSection): ReactNode {
+const renderSection = (section: NavSection): ReactNode => {
   switch (section) {
     case "simulators":
       return <SimulatorsDrawer />;
@@ -110,4 +110,4 @@ function renderSection(section: NavSection): ReactNode {
     default:
       return null;
   }
-}
+};

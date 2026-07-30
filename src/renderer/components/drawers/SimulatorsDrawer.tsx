@@ -9,12 +9,10 @@
 import type { JSX } from "react";
 import { TargetList } from "@/components/drawers/TargetList.js";
 
-export function SimulatorsDrawer(): JSX.Element {
-  return (
-    <TargetList
-      kinds={["ios-simulator", "android-emulator"]}
-      emptyTitle="No booted simulators found."
-      emptyHint={"Open a simulator from Xcode or the Simulator app,\nthen refresh this list."}
-    />
-  );
-}
+export const SimulatorsDrawer = (): JSX.Element => (
+  <TargetList
+    kinds={["ios-simulator", "android-emulator"]}
+    emptyTitle="No booted simulators found."
+    emptyHint={"Open a simulator from Xcode or the Simulator app,\nthen refresh this list."}
+  />
+);

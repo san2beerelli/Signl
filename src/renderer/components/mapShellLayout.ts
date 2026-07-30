@@ -35,8 +35,7 @@ export const DRAWER_LEFT = SHELL_MARGIN + RAIL_WIDTH + DRAWER_GAP;
  * instructional banners) should reserve so it never sits underneath the
  * rail or an open drawer.
  */
-export function shellContentLeftInset(isDrawerOpen: boolean): number {
-  return isDrawerOpen
+export const shellContentLeftInset = (isDrawerOpen: boolean): number =>
+  isDrawerOpen
     ? DRAWER_LEFT + DRAWER_WIDTH + DRAWER_GAP
     : SHELL_MARGIN + RAIL_WIDTH + DRAWER_GAP;
-}

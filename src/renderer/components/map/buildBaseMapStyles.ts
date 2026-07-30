@@ -12,6 +12,4 @@ export const MAP_STYLES: Record<MapTheme, string> = {
   light: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
 };
 
-export function buildBaseMapStyle(theme: MapTheme): string {
-  return MAP_STYLES[theme];
-}
+export const buildBaseMapStyle = (theme: MapTheme): string => MAP_STYLES[theme];

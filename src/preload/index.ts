@@ -17,20 +17,20 @@ import type {
 /**
  * Type-safe invoke wrapper.
  */
-async function invoke<C extends IpcInvokeChannel>(
+const invoke = async <C extends IpcInvokeChannel>(
   channel: C,
   ...args: InvokePayload<C> extends void ? [] : [InvokePayload<C>]
-): Promise<InvokeResponse<C>> {
+): Promise<InvokeResponse<C>> => {
   return ipcRenderer.invoke(channel, ...args) as Promise<InvokeResponse<C>>;
-}
+};
 
 /**
  * Type-safe event subscription.
  */
-function on<C extends IpcPushChannel>(
+const on = <C extends IpcPushChannel>(
   channel: C,
   callback: (payload: PushPayload<C>) => void
-): () => void {
+): (() => void) => {
   const handler = (_event: Electron.IpcRendererEvent, payload: PushPayload<C>): void => {
     callback(payload);
   };
@@ -40,7 +40,7 @@ function on<C extends IpcPushChannel>(
   return () => {
     ipcRenderer.removeListener(channel, handler);
   };
-}
+};
 
 /**
  * API exposed to renderer via window.api
