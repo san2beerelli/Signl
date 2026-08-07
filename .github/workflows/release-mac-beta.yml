@@ -77,9 +77,17 @@ jobs:
 
           security import "$INTERMEDIATE_PATH" -k "$KEYCHAIN_PATH"
           security import "$CERT_PATH" -P "$CSC_KEY_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$CSC_KEY_PASSWORD" "$KEYCHAIN_PATH"
 
-          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          # Append to whatever keychains already exist in the search list,
+          # rather than assuming a specific default keychain name/path -
+          # that assumption is what broke this the first time.
+          EXISTING_KEYCHAINS=$(security list-keychains -d user | sed 's/[[:space:]]*"\(.*\)"[[:space:]]*/\1/')
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $EXISTING_KEYCHAINS
           security default-keychain -s "$KEYCHAIN_PATH"
+
+          echo "--- identities visible after keychain setup ---"
+          security find-identity -v -p codesigning
 
           rm -f "$CERT_PATH" "$INTERMEDIATE_PATH"
 
