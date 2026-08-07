@@ -50,14 +50,45 @@ jobs:
       - name: Build renderer/main/preload bundles
         run: npm run build
 
-      - name: Package, sign, and notarize the macOS app
+      # electron-builder's own CSC_LINK handling imports the .p12 into a
+      # fresh temporary keychain, but that keychain has no idea about
+      # Apple's "Developer ID Certification Authority" intermediate cert,
+      # so the identity resolves as untrusted (CSSMERR_TP_NOT_TRUSTED) and
+      # signing gets silently skipped. Building the keychain by hand here,
+      # with the intermediate imported alongside the cert, fixes that -
+      # this mirrors installing that same intermediate in Keychain Access
+      # on a real Mac.
+      - name: Import signing certificate
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+          CERT_PATH="$RUNNER_TEMP/certificate.p12"
+          INTERMEDIATE_PATH="$RUNNER_TEMP/DeveloperIDCA.cer"
+
+          echo -n "$CSC_LINK" | base64 --decode -o "$CERT_PATH"
+          curl -sS -o "$INTERMEDIATE_PATH" "https://www.apple.com/certificateauthority/DeveloperIDCA.cer"
+
+          security create-keychain -p "$CSC_KEY_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$CSC_KEY_PASSWORD" "$KEYCHAIN_PATH"
+
+          security import "$INTERMEDIATE_PATH" -k "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$CSC_KEY_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security default-keychain -s "$KEYCHAIN_PATH"
+
+          rm -f "$CERT_PATH" "$INTERMEDIATE_PATH"
+
+      - name: Package, sign, and notarize the macOS app
+        env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npm run package:mac
+        run: npm run package:mac -- --publish never
 
       - name: Publish beta release
         uses: softprops/action-gh-release@v2
